@@ -33,11 +33,11 @@ import locale
 import os
 import pkg_resources
 import re
-import sha
+import hashlib
 import subprocess
 import sys
 
-from StringIO import StringIO
+from io import StringIO
 
 from genshi.core import  Stream
 from genshi.input import HTMLParser
@@ -321,11 +321,11 @@ class Graphviz(Component):
                             "requested format (%(fmt)s) not valid.",
                             fmt=out_format)))
 
-        encoded_cmd = (processor + unicode(self.processor_options)) \
+        encoded_cmd = (processor + str(self.processor_options)) \
             .encode(self.encoding)
         encoded_content = content.encode(self.encoding)
-        sha_key  = sha.new(encoded_cmd + encoded_content +
-                           ('S' if self.sanitizer else '')).hexdigest()
+        sha_key  = hashlib.sha256(encoded_cmd + encoded_content +
+                           (b'S' if self.sanitizer else b'')).hexdigest()
         img_name = '%s.%s.%s' % (sha_key, processor, out_format)
         # cache: hash.<dot>.<png>
         img_path = os.path.join(self.cache_dir, img_name)
@@ -408,8 +408,8 @@ class Graphviz(Component):
                 # so we have to adjust them.
                 # The correction factor seems to be constant.
                 w_val, h_val = [1.35 * float(x) for x in (w_val, h_val)]
-                width = unicode(w_val) + w_unit
-                height = unicode(h_val) + h_unit
+                width = str(w_val) + w_unit
+                height = str(h_val) + h_unit
             except ValueError:
                 width = height = '100%'
 
@@ -561,7 +561,7 @@ class Graphviz(Component):
         # Anyway, dot expects utf-8 or the encoding specified with -Gcharset.
         encoded_cmd = []
         for arg in args:
-            if isinstance(arg, unicode):
+            if isinstance(arg, str):
                 arg = arg.encode(self.encoding, 'replace')
             encoded_cmd.append(arg)
         p = subprocess.Popen(encoded_cmd, stdin=subprocess.PIPE,
@@ -584,10 +584,8 @@ class Graphviz(Component):
 
     def _error_div(self, msg):
         """Display msg in an error box, using Trac style."""
-        if isinstance(msg, str):
-            msg = to_unicode(msg)
         self.log.error(msg)
-        if isinstance(msg, unicode):
+        if isinstance(msg, str):
             msg = tag.pre(escape(msg))
         return tag.div(
                 tag.strong(_("Graphviz macro processor has detected an error. "
