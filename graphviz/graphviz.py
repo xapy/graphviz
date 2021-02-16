@@ -63,7 +63,7 @@ class Graphviz(Component):
     implements(IWikiMacroProvider, IHTMLPreviewRenderer, IRequestHandler)
 
     # Available formats and processors, default first (dot/png)
-    Processors = ['dot', 'neato', 'twopi', 'circo', 'fdp']
+    Processors = ['dot', 'neato', 'twopi', 'circo', 'fdp', 'gnuplot']
     Bitmap_Formats = ['png', 'jpg', 'gif']
     Vector_Formats = ['svg', 'svgz']
     Formats = Bitmap_Formats + Vector_Formats
@@ -72,7 +72,7 @@ class Graphviz(Component):
                      '/usr/local/bin',],
 
         'win32':    ['c:\\Program Files\\Graphviz\\bin',
-                     'c:\\Program Files\\ATT\\Graphviz\\bin',
+                     'c:\\Program Files\\gnuplot\\bin',
                      ],
 
         'freebsd6': ['/usr/local/bin',
@@ -559,13 +559,18 @@ class Graphviz(Component):
         # Note: subprocess.Popen doesn't support unicode options arguments
         # (http://bugs.python.org/issue1759845) so we have to encode them.
         # Anyway, dot expects utf-8 or the encoding specified with -Gcharset.
-        encoded_cmd = []
-        for arg in args:
-            if isinstance(arg, str):
-                arg = arg.encode(self.encoding, 'replace')
-            encoded_cmd.append(arg)
-        p = subprocess.Popen(encoded_cmd, stdin=subprocess.PIPE,
+        cmd, T, o = [args[0]], '', ''
+        if 'gnuplot' not in cmd[0]:
+            cmd = [arg for arg in args]
+        else:
+            for arg in args:
+                if arg[:2] == '-o': o = arg[2:]
+                elif arg[:2] == '-T': T = arg[2:]
+
+        p = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if 'gnuplot' in cmd[0]:
+            p.stdin.write(("set terminal %s transparent\nset output '%s'\n"%(T,o)).encode('utf-8'))
         if encoded_input:
             p.stdin.write(encoded_input)
         p.stdin.close()
@@ -574,7 +579,7 @@ class Graphviz(Component):
         failure = p.wait() != 0
         if failure or err or out:
             return (failure, tag.p(tag.br(), _("The command:"),
-                         tag.pre(repr(' '.join(encoded_cmd))),
+                         tag.pre(repr(' '.join(cmd))),
                          (_("succeeded but emitted the following output:"),
                           _("failed with the following output:"))[failure],
                          out and tag.pre(repr(out)),
